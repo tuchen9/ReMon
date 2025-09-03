@@ -124,7 +124,6 @@ def main():
             model_without_ddp = model.module
 
         optimizer = optim.Adam(model.parameters(), lr=conf["lr"], weight_decay=conf["l2_reg"])
-        # optimizer = optim.AdamW(model.parameters(), lr=conf["lr"], weight_decay=conf["l2_reg"])
 
         batch_cnt = len(dataset.train_loader)
         test_interval_bs = int(batch_cnt * conf["test_interval"])
@@ -145,7 +144,6 @@ def main():
             dist.barrier()
             if conf["model"] == "ConOA":
                 dist.broadcast(train_emb, src=0)
-                # dist.broadcast(train_clusters, src=0)
         if conf["model"] == "ConOA":
             model_without_ddp.init_queue(train_emb, train_org_idx, train_clusters)
 
@@ -160,40 +158,24 @@ def main():
 
             for batch_i, (batch, batch_org_idx, batch_pos_idx) in pbar:
                 batch_anchor = epoch_anchor + batch_i + 1
-                # print(batch_anchor)
 
                 model.train(True)
                 #### Gradient Accumulation ####
                 my_context = model.no_sync if conf["distributed"] and (batch_i+1) % conf["opt_interval"] != 0 else nullcontext
-                # print(torch.cuda.memory_allocated())
                 with my_context():
                     batch = batch.to(device)
                     batch_org_idx = batch_org_idx.to(device)
                     batch_pos_idx = batch_pos_idx.to(device)
-                    # print('---batch---')
-                    # print(torch.cuda.memory_allocated())
                     if conf["model"] == "ConOA":
-                        # loss = model(batch, batch_org_idx, batch_pos_idx) / conf["opt_interval"]
-                        # a_c_loss, a_o_c_loss = model(batch, batch_org_idx, batch_pos_idx)
-                        # loss = (0.6*a_c_loss + 0.4*a_o_c_loss) / conf["opt_interval"]
                         a_c_loss, a_o_c_loss, o_c_loss= model(batch, batch_org_idx, batch_pos_idx)
                         loss = (0.6*a_c_loss + 0.2*a_o_c_loss + 0.2*o_c_loss) / conf["opt_interval"]
                     else:
                         loss = model(batch) / conf["opt_interval"]
-                    # print('---loss_cal---')
-                    # print(torch.cuda.memory_allocated())
-                    
                     loss.backward()
-                    # print('---loss_back---')
-                    # print(torch.cuda.memory_allocated())
                 
                 if (batch_i+1) % conf["opt_interval"] == 0:
                     optimizer.step()
-                    # print('---optimize---')
-                    # print(torch.cuda.memory_allocated())
                     optimizer.zero_grad()
-                    # print('---optimize_zero_grad---')
-                    # print(torch.cuda.memory_allocated())
 
                 if conf["distributed"]:
                     loss_scalar = dist_utils.reduce_mean(loss, dist.get_world_size()).item()
@@ -210,8 +192,6 @@ def main():
                 run.add_scalar("a_o_c_loss", a_o_c_loss_scalar, batch_anchor)
                 run.add_scalar("o_c_loss", o_c_loss_scalar, batch_anchor)
 
-                # pbar.set_description("epoch: %d, loss: %.4f" %(epoch, loss_scalar))
-                # pbar.set_description("epoch: %d, loss: %.4f, a_c_loss: %.4f, a_o_c_loss: %.4f" %(epoch, loss_scalar, a_c_loss_scalar, a_o_c_loss_scalar))
                 pbar.set_description("epoch: %d, loss: %.4f, a_c_loss: %.4f, a_o_c_loss: %.4f, o_c_loss: %.4f" %(epoch, loss_scalar, a_c_loss_scalar, a_o_c_loss_scalar, o_c_loss_scalar))
 
                 if (not conf["distributed"] or (conf["distributed"] and dist_utils.is_main_process())) and batch_anchor % test_interval_bs == 0:  
@@ -283,13 +263,8 @@ def test(model, train_emb, train_org_idx, dataloader, tokenizer, conf):
             mean_scores = scatter(asset_scores, train_org_idx, dim=-1, reduce='mean')
             assert mean_scores.size() == org_label.size()
             
-            ### 1org
             train_org_emb = model.cal_org_emb(train_emb, train_org_idx)
             org_scores = model.evaluate(test_emb, train_org_emb)
-            # if conf["model"] == "ConOA":
-                ### norg
-                # train_sample_org_emb, train_sample_org_idx = model.cal_org_emb(train_emb, train_org_idx)
-                # org_scores,_ = scatter_max(model.evaluate(test_emb, train_sample_org_emb), train_sample_org_idx)
             assert org_scores.size() == org_label.size()
             
             tmp_metrics, tmp_sim_metric, tmp_global_sim_metric = get_metrics(tmp_metrics, asset_label.to(device), asset_scores, org_label.to(device), org_scores, mean_scores, conf["topk"])
@@ -308,7 +283,7 @@ def test(model, train_emb, train_org_idx, dataloader, tokenizer, conf):
     sim_metric = torch.mean(sim_metric,dim=0).tolist()
     global_sim_metric = torch.mean(global_sim_metric, dim=0)
     sim_metric.append(global_sim_metric.item())
-    # print(sim_metric)
+
     return metrics, sim_metric
 
 
@@ -553,7 +528,6 @@ def write_log(run, log_path, topks, step, metrics, sim_metric):
     log.close()
     print(val_str)
     print(test_str)
-
 
 if __name__ == "__main__":
     main()
