@@ -93,17 +93,11 @@ class ConOA(nn.Module):
         assets_embedding_d = F.normalize(torch.cat((assets_embedding_m, self.data_augmentation(assets_embedding_m,0.05)),dim=0), dim=-1)
         # pred1---[batch_size, 2*batch_size]
         pred1 = torch.mm(anchors_embedding, assets_embedding_d.permute(1,0))
-        # print("---pred1")
-        # print(pred1.size())
-        # print(pred1)
 
         # queue---[emb_size, queue_size]
         queue_assets_embedding = self.queue.clone().detach()
         # pred2---[batch_size, queue_size]
         pred2 = torch.mm(anchors_embedding, F.normalize(queue_assets_embedding, dim=0))
-        # print("---pred2")
-        # print(pred2.size())
-        # print(pred2)
         
         batch_org_idx = batch_org_idx.view(-1,1)
         queue_org_idx = self.idx_queue.clone().detach()
@@ -121,12 +115,11 @@ class ConOA(nn.Module):
         for i in range(batch_org_idx.shape[0]):
             indices = (queue_org_idx == batch_org_idx[i]).nonzero().reshape(-1)
             batch_anchor_org_emb[i,:] = torch.mean(torch.cat((anchors_embedding_m, assets_embedding_m, queue_assets_embedding[indices,:].reshape(-1,self.embedding_size)), dim=0), dim=0)
-            # batch_pos_org_emb[i,:] = torch.mean(torch.cat((assets_embedding_m, queue_assets_embedding[indices,:].reshape(-1,self.embedding_size)), dim=0), dim=0)
             batch_pos_org_emb[i,:] = self.data_augmentation(batch_anchor_org_emb[i,:], self.aug_ratio)
         
         # batch_anchor_org_emb---[batch_size, emb_size]
         batch_anchor_org_emb = F.normalize(batch_anchor_org_emb, dim=-1)
-        # # batch_pos_org_emb---[batch_size, emb_size]
+        # batch_pos_org_emb---[batch_size, emb_size]
         batch_pos_org_emb = F.normalize(batch_pos_org_emb, dim=-1)
         
         ### asset-org
@@ -159,9 +152,8 @@ class ConOA(nn.Module):
 
     def forward(self, batch, batch_org_idx, batch_pos_idx):
         # anchors---[batch_size, 1]
-        anchors_embedding = F.normalize(self.encoder_q({key: values[:,0,:] for key, values in batch.items()}), dim=-1)
         # anchors_embedding---[batch_size, emb_size]
-        # print(anchors_embedding.size())
+        anchors_embedding = F.normalize(self.encoder_q({key: values[:,0,:] for key, values in batch.items()}), dim=-1)
 
         # compute key features
         with torch.no_grad():  # no gradient to keys
@@ -169,11 +161,9 @@ class ConOA(nn.Module):
 
             anchors_embedding_m = self.encoder_k({key: values[:,0,:] for key, values in batch.items()})
             # assets---[batch_size, 1]
-            assets_embedding_m = self.encoder_k({key: values[:,1,:] for key, values in batch.items()})
             # assets_embedding---[batch_size, emb_size]
-            # print(assets_embedding.size())
+            assets_embedding_m = self.encoder_k({key: values[:,1,:] for key, values in batch.items()})
 
-        # a_c_loss, a_o_c_loss = self.cal_loss(anchors_embedding, anchors_embedding_m, assets_embedding_m, batch_org_idx)
         a_c_loss, a_o_c_loss, o_c_loss = self.cal_loss(anchors_embedding, anchors_embedding_m, assets_embedding_m, batch_org_idx)
 
         # dequeue and enqueue
@@ -188,7 +178,6 @@ class ConOA(nn.Module):
         unique_org_idx = train_org_idx.unique(sorted=True)
         # org_embedding---[org_num, emb_size]
         org_embedding = self.mean_assets_emb(train_emb, train_org_idx, unique_org_idx)
-        # print(org_embedding.size())
         return org_embedding
 
 
@@ -196,10 +185,8 @@ class ConOA(nn.Module):
     def evaluate(self, test_emb, train_emb):
         # test_emb---[batch_size, emb_size]
         # train_emb---[train_num, emb_size]
-        
-        scores = torch.mm(F.normalize(test_emb, dim=-1), F.normalize(train_emb, dim=-1).permute(1,0))
         # scores---[batch_size, train_num]
-        # print(scores.size())
+        scores = torch.mm(F.normalize(test_emb, dim=-1), F.normalize(train_emb, dim=-1).permute(1,0))
         return scores
 
 
@@ -252,3 +239,4 @@ def concat_all_gather(tensor):
 
     output = torch.cat(tensors_gather, dim=0)
     return output
+
