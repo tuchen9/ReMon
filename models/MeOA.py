@@ -43,23 +43,14 @@ class MeOA(nn.Module):
         for param in self.bert.parameters():
             param.requires_grad = True
         self.fc = nn.Linear(self.hidden_size, self.embedding_size)
-        # self.fc = nn.Sequential(
-        #     nn.Linear(self.hidden_size, self.embedding_size * 2),
-        #     nn.Linear(self.embedding_size * 2, self.embedding_size)
-        # )
 
 
     def embedding(self, batch):
         # anchor---[batch_size, 1]
         # assets---[batch_size, 1+neg_num]
-        # print(batch['input_ids'].size())
-        # print(batch['attention_mask'].size())
-        # print(batch['token_type_ids'].size())
         batch_size = batch['input_ids'].size()[0]
         seq_length = batch['input_ids'].size()[-1]
         cls_emb = self.bert(input_ids=batch['input_ids'].view(-1,seq_length), attention_mask=batch['attention_mask'].view(-1,seq_length), token_type_ids=batch['token_type_ids'].view(-1,seq_length))[1]
-        # print(cls_emb.size())
-        # return cls_emb.view(batch_size,-1,self.hidden_size)
         embedding = self.fc(cls_emb)
         return embedding.view(batch_size,-1,self.embedding_size)
 
@@ -96,23 +87,8 @@ class MeOA(nn.Module):
     def cal_loss(self, anchor_embedding, assets_embedding):
         # pred---[batch_size, 1+neg_num]
         pred = F.cosine_similarity(anchor_embedding, assets_embedding, dim=2)
-        # print("---pred")
-        # print(pred.size())
-        # print(pred)
         
         margin_loss = self.cal_margin_loss(pred)
-        
-        # bpr_loss = self.cal_bpr_loss(pred)
-        
-        # batch_size = anchor_embedding.size()[0]
-        # ass_len = assets_embedding.size()[1]
-        # label_list = []
-        # for bs in range(batch_size):
-        #     label_list.append(1)
-        #     for i in range(ass_len-1):
-        #         label_list.append(-1)
-        # cos_emb_loss = F.cosine_embedding_loss(anchor_embedding.squeeze(1).repeat(1,ass_len), assets_embedding.view(batch_size,-1), torch.Tensor(label_list).to(self.device), margin=0.25, reduction='mean')
-        # loss = F.cross_entropy(pred, torch.Tensor(label_list).view(batch_size,-1).to(self.device))
 
         return margin_loss
 
@@ -123,11 +99,6 @@ class MeOA(nn.Module):
         # assets_embedding---[batch_size, 1+neg_num, emb_size]
         anchor_embedding = embedding[:,0,:].unsqueeze(1)
         assets_embedding = embedding[:,1:,:]
-        # print("---anchor")
-        # print(anchor_embedding)
-        # print("---asset")
-        # print(assets_embedding.size())
-        # print(assets_embedding)
         margin_loss = self.cal_loss(anchor_embedding, assets_embedding)
 
         return margin_loss
@@ -148,15 +119,13 @@ class MeOA(nn.Module):
         unique_org_idx = train_org_idx.unique(sorted=True)
         # org_embedding---[org_num, emb_size]
         org_embedding = self.mean_assets_emb(train_emb, train_org_idx, unique_org_idx)
-        # print(org_embedding.size())
         return org_embedding
 
     @torch.no_grad()
     def evaluate(self, test_emb, train_emb):
         # test_emb---[batch_size, emb_size]
         # train_emb---[train_num, emb_size]
-        
-        scores = F.cosine_similarity(test_emb.unsqueeze(1), train_emb.unsqueeze(0), dim=2)
         # scores---[batch_size, train_num]
-        # print(scores.size())
+        scores = F.cosine_similarity(test_emb.unsqueeze(1), train_emb.unsqueeze(0), dim=2)
         return scores
+
