@@ -76,14 +76,6 @@ class TrainDataset(Dataset):
         
         if self.model == "MeOA":
             neg_count = 0
-            # while True:
-            #     i = np.random.randint(self.num_train)
-            #     neg_id = list(self.assets_info_list.keys())[i]
-            #     if self.assets_info_list[neg_id]['org'] != org:
-            #         asset_text_list.append(self.assets_info_list[neg_id]['text'])
-            #         neg_count += 1
-            #         if neg_count == self.neg_num:
-            #             break
             
             while True:
                 i = np.random.randint(self.num_orgs)
@@ -101,7 +93,6 @@ class TrainDataset(Dataset):
 
 
     def __len__(self):
-        # return self.num_orgs
         return self.num_train
 
 
@@ -124,7 +115,6 @@ class TestDataset(Dataset):
         org_id = self.org2id[org]
         org_label = torch.zeros(self.num_orgs)
         org_label[org_id] = 1
-        # print(org_label)
         
         asset_label = []        
         for id in self.train_assets_info_list.keys():
@@ -227,11 +217,11 @@ class Datasets():
         if task == 'train':
             batch_sentences = split(self.tokenizer, text, self.max_token_len)
             if len(batch_sentences) != 0:
-                return asset_id + batch_sentences[np.random.randint(len(batch_sentences))]
+                return batch_sentences[np.random.randint(len(batch_sentences))]
             else:
                 return asset_id
         else:
-            return asset_id + text
+            return text
 
 
     def get_data(self, task):
@@ -251,3 +241,4 @@ class Datasets():
                     assets_info_list[asset_id] = {'text' : self.processing(asset_id, data[org][asset_id].replace(org,''), task), 'org' : org}
         
         return org_assets_list, assets_info_list
+
